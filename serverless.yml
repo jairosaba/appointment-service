@@ -1,0 +1,209 @@
+service: ${file(./serverless.env.yml):${opt:stage}.SLS_SERVICENAME}
+frameworkVersion: '3'
+useDotenv: true
+plugins:
+  - serverless-offline
+  - serverless-plugin-warmup
+provider:
+  name: aws
+  profile: ${env:AWS_PROFILE}
+  runtime: nodejs18.x
+  region: us-east-1
+  memorySize: 1024
+  timeout: 30
+  logRetentionInDays: 14
+  lambdaHashingVersion: 20201221
+  versionFunctions: false
+  stage: ${file(./serverless.env.yml):${opt:stage}.SLS_ENV}
+  vpc:
+    securityGroupIds:
+      - ${file(./serverless.env.yml):${opt:stage}.SECURITYGROUP}
+    subnetIds:
+      - ${file(./serverless.env.yml):${opt:stage}.SUBNET}
+  environment:
+    APPOINTMENTS_TABLE: ${env:APPOINTMENTS_TABLE}
+    SNS_TOPIC_ARN: ${env:SNS_TOPIC_ARN}
+    EVENT_BUS_NAME: ${env:EVENT_BUS_NAME}
+    RDS_PE_HOST: ${env:RDS_PE_HOST}
+    RDS_PE_USER: ${env:RDS_PE_USER}
+    RDS_PE_PASSWORD: ${env:RDS_PE_PASSWORD}
+    RDS_PE_DATABASE: ${env:RDS_PE_DATABASE}
+    RDS_CL_HOST: ${env:RDS_CL_HOST}
+    RDS_CL_USER: ${env:RDS_CL_USER}
+    RDS_CL_PASSWORD: ${env:RDS_CL_PASSWORD}
+    RDS_CL_DATABASE: ${env:RDS_CL_DATABASE}
+
+functions:
+  docs:
+    handler: dist/interfaces/lambdas/swaggerDocs.serve
+    events:
+      - http:
+          path: docs
+          method: get
+          cors: true
+      - http:
+          path: swagger.json
+          method: get
+          cors: true
+
+  createAppointment:
+    handler: dist/interfaces/lambdas/createAppointment.handler
+    events:
+      - http:
+          path: appointments
+          method: post
+
+  getAppointmentsByInsured:
+    handler: dist/interfaces/lambdas/getAppointments.handler
+    events:
+      - http:
+          path: appointments/{insuredId}
+          method: get
+
+  appointmentPeWorker:
+    handler: dist/interfaces/lambdas/appointment_pe.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - SQSPE
+              - Arn
+
+  appointmentClWorker:
+    handler: dist/interfaces/lambdas/appointment_cl.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - SQSCL
+              - Arn
+
+  updateAppointmentStatus:
+    handler: dist/interfaces/lambdas/updateStatus.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - EventStatusQueue
+              - Arn
+
+resources:
+  Resources:
+    AppointmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${env:APPOINTMENTS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: insuredId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: InsuredIndex
+            KeySchema:
+              - AttributeName: insuredId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    SQSPE:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: sqs_pe
+
+    SQSCL:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: sqs_cl
+
+    EventStatusQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: appointment_status_queue
+
+    SqsPeSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${env:SNS_TOPIC_ARN}
+        Protocol: sqs
+        Endpoint:
+          Fn::GetAtt:
+            - SQSPE
+            - Arn
+
+    SqsClSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${env:SNS_TOPIC_ARN}
+        Protocol: sqs
+        Endpoint:
+          Fn::GetAtt:
+            - SQSCL
+            - Arn
+
+    SqsStatusSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${env:SNS_TOPIC_ARN}
+        Protocol: sqs
+        Endpoint:
+          Fn::GetAtt:
+            - EventStatusQueue
+            - Arn
+
+    SQSPEPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: SQSPE
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "SQS:SendMessage"
+              Resource: "*"
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: ${env:SNS_TOPIC_ARN}
+
+    SQSCLPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: SQSCL
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "SQS:SendMessage"
+              Resource: "*"
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: ${env:SNS_TOPIC_ARN}
+
+    SqsStatusSubscriptionPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: EventStatusQueue
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "SQS:SendMessage"
+              Resource: "*"
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: ${env:SNS_TOPIC_ARN}
+    
+custom:
+  warmup:
+    default:
+      enabled: false

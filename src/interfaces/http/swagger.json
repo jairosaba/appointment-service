@@ -1,0 +1,88 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Appointment API",
+      "version": "1.0.0"
+    },
+    "servers": [
+      {
+        "url": "https://{apiId}.execute-api.{region}.amazonaws.com/{stage}",
+        "variables": {
+          "apiId": {
+            "default": "niy0irlw7f"
+          },
+          "region": {
+            "default": "us-east-1"
+          },
+          "stage": {
+            "default": "local" 
+          }
+        }
+      }
+    ],
+    "paths": {
+      "/appointments": {
+        "post": {
+          "summary": "Crear una cita",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentInput"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Cita creada correctamente"
+            },
+            "400": {
+              "description": "Datos inválidos"
+            }
+          }
+        }
+      },
+      "/appointments/{insuredId}": {
+        "get": {
+          "summary": "Obtener citas por ID asegurado",
+          "parameters": [
+            {
+              "name": "insuredId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Lista de citas"
+            },
+            "400": {
+              "description": "Falta insuredId"
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "AppointmentInput": {
+          "type": "object",
+          "required": ["insuredId", "scheduleId", "countryISO"],
+          "properties": {
+            "insuredId": { "type": "string" },
+            "scheduleId": { "type": "string" },
+            "countryISO": {
+              "type": "string",
+              "enum": ["PE", "CL"]
+            }
+          }
+        }
+      }
+    }
+  }
+  
