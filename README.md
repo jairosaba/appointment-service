@@ -20,7 +20,7 @@ Este es un servicio de backend sin servidor para gestionar agendamientos de cita
 
 ## Arquitectura
 
-![Appointment Backend Architecture](./docs/architecture.png)
+Arquitectura Hexagonal
 
 ### Flujo General:
 1. El cliente realiza un POST `/appointments`.
