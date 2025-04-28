@@ -1,16 +1,23 @@
-import { EventBridge } from 'aws-sdk'
+import { IEventPublisher } from "../../domain/ports/messaging/IEventPublisher";
+import { EventBridge } from "aws-sdk";
 
-const eventBridge = new EventBridge()
+const eventBridge = new EventBridge();
 
-export async function publishToEventBridge(payload: any) {
-  await eventBridge.putEvents({
-    Entries: [
-      {
-        Source: 'appointment.service',
-        DetailType: 'AppointmentCompleted',
-        Detail: JSON.stringify(payload),
-        EventBusName: process.env.EVENT_BUS_NAME || 'appointment-bus',
-      },
-    ],
-  }).promise()
+export class EventBridgePublisher implements IEventPublisher {
+  private eventBusName = process.env.EVENT_BUS_NAME || "appointment-bus";
+
+  async publish(event: any): Promise<void> {
+    await eventBridge
+      .putEvents({
+        Entries: [
+          {
+            Source: "appointment.service",
+            DetailType: "AppointmentCompleted",
+            Detail: JSON.stringify(event),
+            EventBusName: this.eventBusName,
+          },
+        ],
+      })
+      .promise();
+  }
 }

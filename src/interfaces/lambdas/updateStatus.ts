@@ -1,22 +1,18 @@
-import { SQSEvent } from 'aws-lambda'
-import { updateStatusInDynamo } from '../../infrastructure/db/dynamoRepository'
+import { APIGatewayProxyHandler } from 'aws-lambda';
+import { DynamoAppointmentRepository } from '../../infrastructure/db/DynamoAppointmentRepository';
+import { UpdateAppointmentStatus } from '../../application/use_cases/UpdateAppointmentStatus';
 
-export const handler = async (event: SQSEvent) => {
-  console.log('Event received:', JSON.stringify(event, null, 2))
+export const updateStatus: APIGatewayProxyHandler = async (event) => {
+    const appointmentRepository = new DynamoAppointmentRepository();
+    const updateStatusUseCase = new UpdateAppointmentStatus(appointmentRepository);
 
-  for (const record of event.Records) {
-    try {
-      const body = JSON.parse(record.body)
-      console.log('Parsed body:', body)
+    const body = JSON.parse(event.body || '{}');
+    const { id, status } = body;
 
-      const appointment = body.id ? body : JSON.parse(body.Message)
-      console.log('Final appointment object:', appointment)
+    const updated = await updateStatusUseCase.execute(id, status);
 
-      await updateStatusInDynamo(appointment.id)
-      console.log(`Estado actualizado para cita ${appointment.id}`)
-    } catch (err) {
-      console.error('Error procesando mensaje SQS:', err)
-    }
-  }
-  
-}
+    return {
+        statusCode: 200,
+        body: JSON.stringify(updated),
+    };
+};

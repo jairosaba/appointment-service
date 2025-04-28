@@ -1,48 +1,32 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
-import { v4 as uuid } from "uuid";
-import { appointmentSchema } from "../http/validators/appointmentValidator";
-import { saveAppointment } from "../../infrastructure/db/dynamoRepository";
-import { publishToSNS } from "../../infrastructure/messaging/snsPublisher";
+import { APIGatewayProxyHandler } from 'aws-lambda';
+import { DynamoAppointmentRepository } from '../../infrastructure/db/DynamoAppointmentRepository';
+import { SNSEventPublisher } from '../../infrastructure/messaging/SNSEventPublisher';
+import { CreateAppointment } from '../../application/use_cases/CreateAppointment';
 
-export const handler: APIGatewayProxyHandler = async (event) => {
-  console.log("Received event:", JSON.stringify(event, null, 2));
+export const createAppointment: APIGatewayProxyHandler = async (event) => {
+    const appointmentRepository = new DynamoAppointmentRepository();
+    const eventPublisher = new SNSEventPublisher();
+    const createAppointmentUseCase = new CreateAppointment(appointmentRepository, eventPublisher);
 
-  try {
-    const body = JSON.parse(event.body || "{}");
-    console.log("Parsed request body:", body);
+    try {
+        const body = JSON.parse(event.body || '{}');
+        if (!body.insuredId || !body.scheduleId || !body.countryISO) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Invalid request body' }),
+            };
+        }
+        const result = await createAppointmentUseCase.execute(body);
 
-    const { error, value } = appointmentSchema.validate(body);
-    if (error) {
-      console.error("Validation error:", error.message);
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: error.message }),
-      };
+        return {
+            statusCode: 201,
+            body: JSON.stringify(result),
+        };
+    } catch (error) {
+        console.error('Error in createAppointment Lambda:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Internal Server Error' }),
+        };
     }
-
-    const appointment = {
-      id: uuid(),
-      createdAt: new Date().toISOString(),
-      status: "pending",
-      ...value,
-    };
-    console.log("Created appointment object:", appointment);
-
-    await saveAppointment(appointment);
-    console.log("Appointment saved to DynamoDB");
-
-    await publishToSNS(appointment);
-    console.log("Appointment published to SNS");
-
-    return {
-      statusCode: 201,
-      body: JSON.stringify({ message: "Appointment created", appointment }),
-    };
-  } catch (err) {
-    console.error("Error during processing:", err);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Internal Server Error" }),
-    };
-  }
 };

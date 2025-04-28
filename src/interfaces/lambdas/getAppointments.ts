@@ -1,17 +1,15 @@
-import { APIGatewayProxyHandler } from 'aws-lambda'
-import { getAppointmentsByInsuredId } from '../../infrastructure/db/dynamoRepository'
+import { APIGatewayProxyHandler } from 'aws-lambda';
+import { DynamoAppointmentRepository } from '../../infrastructure/db/DynamoAppointmentRepository';
+import { GetAppointments } from '../../application/use_cases/GetAppointments';
 
-export const handler: APIGatewayProxyHandler = async (event) => {
-  const insuredId = event.pathParameters?.insuredId
-  console.log("insuredId",insuredId)
-  if (!insuredId) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Missing insuredId' }) }
-  }
-  console.log("antes de consultar por id")
-  const items = await getAppointmentsByInsuredId(insuredId)
-  console.log("items",items)
-  return {
-    statusCode: 200,
-    body: JSON.stringify(items),
-  }
-}
+export const getAppointments: APIGatewayProxyHandler = async () => {
+    const appointmentRepository = new DynamoAppointmentRepository();
+    const getAppointmentsUseCase = new GetAppointments(appointmentRepository);
+
+    const appointments = await getAppointmentsUseCase.execute();
+
+    return {
+        statusCode: 200,
+        body: JSON.stringify(appointments),
+    };
+};

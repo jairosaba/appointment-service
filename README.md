@@ -40,19 +40,36 @@ Este es un servicio de backend sin servidor para gestionar agendamientos de cita
 appointment-backend/
 - src/
   - domain/
-    - entities/Appointment.ts
+    - entities/
+      - Appointment.ts
+    - ports/
+      - repositories/
+        - IAppointmentRepository.ts
+      - messaging/
+        - IEventPublisher.ts
+  - application/
+    - use_cases/
+      - CreateAppointment.ts
+      - GetAppointments.ts
+      - UpdateAppointmentStatus.ts
+  - infrastructure/
+    - db/
+      - DynamoAppointmentRepository.ts
+      - MysqlClient.ts
+    - messaging/
+      - SNSEventPublisher.ts
+    - events/
+      - EventBridgePublisher.ts
   - interfaces/
-    - http/validators/appointmentValidator.ts
+    - http/
+      - validators/
+        - appointmentValidator.ts
     - lambdas/
       - createAppointment.ts
       - getAppointments.ts
-      - appointment_pe.ts
-      - appointment_cl.ts
       - updateStatus.ts
-  - infrastructure/
-    - db/dynamoRepository.ts
-    - events/eventBridgePublisher.ts
-    - messaging/snsPublisher.ts
+      - appointment_cl.ts
+      - appointment_pe.ts
   - tests/
     - createAppointment.test.ts
 - .env
@@ -129,7 +146,7 @@ npm run deploy
 
 ```bash
 npm install -g serverless
-serverless deploy
+serverless deploy --stage {local}
 ```
 ---
 
@@ -137,6 +154,7 @@ serverless deploy
 
 Este proyecto proporciona una API para gestionar citas médicas. Puedes acceder a la documentación interactiva de la API en el siguiente enlace:
 
+https://niy0irlw7f.execute-api.us-east-1.amazonaws.com/local/docs
 - **Obtener Documentación de la API:**
   - **Método:** `GET`
   - **URL:** `/docs`
